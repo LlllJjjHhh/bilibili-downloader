@@ -5,9 +5,20 @@ import argparse
 import subprocess
 from typing import Optional, List, Tuple
 
+__version__ = "1.2.0"
+
 
 class BilibiliDownloader:
-    """Simple Bilibili video downloader based on you-get"""
+    """Simple Bilibili video downloader based on you-get
+    
+    Features:
+    - Single video download by URL
+    - Batch download from text file
+    - Quality selection
+    - Audio only extraction
+    - Cookie support for VIP/high quality videos
+    - Danmaku download support
+    """
     
     def __init__(self, cookie_file: Optional[str] = None):
         self.cookie_file = cookie_file
@@ -104,9 +115,26 @@ class BilibiliDownloader:
         if not url.strip():
             return False, "URL is empty"
         
-        # Validate URL
-        if not ("bilibili.com" in url or "b23.tv" in url):
-            return False, f"Invalid Bilibili URL: {url}"
+        # Validate URL - support multiple formats:
+        # - https://www.bilibili.com/video/BVxxxx
+        # - https://b23.tv/BVxxxx (short link)
+        # - BVxxxx (just the BV id)
+        # - avxxxxxxx (av id)
+        url_lower = url.lower()
+        if not ("bilibili.com" in url_lower or "b23.tv" in url_lower 
+                or url.startswith('BV') or url.startswith('bv') 
+                or url.startswith('av') or url.startswith('AV')):
+            # If it's just the BV/av id, add the full URL automatically
+            if url.startswith(('BV', 'bv', 'av', 'AV')):
+                url = f"https://www.bilibili.com/video/{url}"
+                print(f"🔍 Auto-completed URL: {url}")
+            else:
+                return False, f"Invalid Bilibili URL: {url}\nSupported formats: full URL, BV id, av id, b23.tv short link"
+        
+        # Auto-clean up URL - remove extra parameters
+        if '?' in url and not url.startswith('http'):
+            # Handle cases where copy-paste adds extra
+            url = url.split('?')[0]
         
         cmd = self._build_command(
             url, output_dir, quality, download_danmaku, audio_only, debug
@@ -117,7 +145,7 @@ class BilibiliDownloader:
         print("-" * 60)
         
         try:
-            result = subprocess.run(cmd, check=True, capture_output=False)
+            subprocess.run(cmd, check=True, capture_output=False)
             print("-" * 60)
             print(f"✅ Download completed: {url}")
             return True, ""
@@ -215,6 +243,7 @@ def main():
     parser.add_argument('--batch-file', help='Batch download from text file (one URL per line)')
     parser.add_argument('--cookie', help='Path to cookie file for downloading high quality videos')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('-v', '--version', action='version', version=f'Bilibili Downloader v{__version__}')
     
     args = parser.parse_args()
     
